@@ -154,9 +154,16 @@ private fun SplashGate() {
 fun RootGate() {
     val state = AppGraph.state
 
+    // 开屏最短展示 1.4s：会话从本地读取太快时也能看到品牌页，不会一闪而过
+    var splashMinDone by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        delay(1_400)
+        splashMinDone = true
+    }
+
     Box(Modifier.fillMaxSize()) {
         when {
-            !state.loaded -> SplashGate()
+            !state.loaded || !splashMinDone -> SplashGate()
             state.server == null -> ServerScreen()
             state.account() == null -> LoginScreen()
             state.bookId() == null -> EnsureBookGate()

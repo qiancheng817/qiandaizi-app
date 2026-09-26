@@ -12,3 +12,5 @@ local.properties
 *.apk
 *.keystore
 !debug.keystore
+# 正式签名 keystore 固定入库：保证每次 CI 构建签名一致，覆盖安装不冲突
+!app/release.keystore

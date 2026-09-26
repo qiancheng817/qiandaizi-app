@@ -29,42 +29,48 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x ./gradlew
 
+      # 签名 keystore 已入库（app/release.keystore），保证每次构建签名一致；
+      # 仅当文件缺失时才临时生成（避免历史版本行为被破坏）
       - name: Prepare release keystore
         run: |
-          keytool -genkeypair -v \
-            -keystore app/release.keystore \
-            -alias qiandaizi \
-            -keyalg RSA -keysize 2048 -validity 10000 \
-            -storepass qiandaizi123 -keypass qiandaizi123 \
-            -dname "CN=Qiandaizi, OU=Mobile, O=Qiandaizi, L=Hangzhou, ST=Zhejiang, C=CN"
+          if [ ! -f app/release.keystore ]; then
+            keytool -genkeypair -v \
+              -keystore app/release.keystore \
+              -alias qiandaizi \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass qiandaizi123 -keypass qiandaizi123 \
+              -dname "CN=Qiandaizi, OU=Mobile, O=Qiandaizi, L=Hangzhou, ST=Zhejiang, C=CN"
+          fi
 
       - name: Build release APK
         run: ./gradlew assembleRelease --stacktrace
 
       - name: Rename APK
-        run: cp app/build/outputs/apk/release/app-release.apk Qiandaizi-v1.9.1.apk
+        run: cp app/build/outputs/apk/release/app-release.apk Qiandaizi-v1.9.2.apk
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: 钱袋子-APK
-          path: Qiandaizi-v1.9.1.apk
+          path: Qiandaizi-v1.9.2.apk
           retention-days: 30
 
       - name: Publish Release
         if: startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v1.9.1' }}
-          name: 钱袋子 Android v1.9.1
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v1.9.2' }}
+          name: 钱袋子 Android v1.9.2
           body: |
             钱袋子原生 Android 客户端（纯 Kotlin + Jetpack Compose，非套壳浏览器）。
-            正式签名安装包，下载下方 `Qiandaizi-v1.9.1.apk` 安装即可（安卓 8.0 及以上）。
+            正式签名安装包，下载下方 `Qiandaizi-v1.9.2.apk` 安装即可（安卓 8.0 及以上）。
             本版改进：
+            - 开屏页最短展示 1.4s，冷启动不再一闪而过
+            - 修复签名冲突：正式 keystore 入库固定，后续版本可正常覆盖安装（本版需先卸载旧版再装）
             - 新增冷启动开屏页：系统闪屏保持到会话就绪，无缝衔接品牌黄开屏（图标淡入放大）
             - AI 记账页模块重排：图片记账 → 一句话记账 → 月度智能分析
             - 新增检查更新：启动静默检查 +「更多 → 关于我们」手动检查，应用内下载 APK 并拉起安装
             - 关于页显示客户端版本与服务端版本
-          files: Qiandaizi-v1.9.1.apk
+          files: Qiandaizi-v1.9.2.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
