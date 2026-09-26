@@ -2,4 +2,6 @@
 <paths>
     <!-- 相机拍照识别：拍照生成的临时小票/账单图片存放目录 -->
     <cache-path name="camera_images" path="images/" />
+    <!-- 应用内更新：下载的新版 APK 存放目录 -->
+    <cache-path name="update_apk" path="update-apk/" />
 </paths>

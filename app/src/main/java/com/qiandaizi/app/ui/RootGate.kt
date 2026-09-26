@@ -72,6 +72,8 @@ import com.qiandaizi.app.ui.more.BillsScreen
 import com.qiandaizi.app.ui.more.TrashScreen
 import com.qiandaizi.app.ui.more.WalletDetailScreen
 import com.qiandaizi.app.ui.more.WalletsScreen
+import com.qiandaizi.app.ui.common.UpdateDialogs
+import com.qiandaizi.app.ui.common.UpdateFlow
 import com.qiandaizi.app.ui.record.RecordScreen
 import com.qiandaizi.app.ui.stats.StatsScreen
 import kotlinx.coroutines.delay
@@ -159,6 +161,13 @@ fun MainShell() {
 
     val push: (Route) -> Unit = { subStack = subStack + it }
     val pop: () -> Unit = { if (subStack.isNotEmpty()) subStack = subStack.dropLast(1) }
+
+    // 冷启动静默检查更新：延迟 3 秒，避免与首页加载抢资源；仅发现新版本时弹窗
+    LaunchedEffect(Unit) {
+        delay(3_000)
+        UpdateFlow.silentCheck()
+    }
+    UpdateDialogs()
 
     // 系统返回（含屏幕左边缘右滑手势）：先退子页面，再回首页
     BackHandler(enabled = subStack.isNotEmpty()) { pop() }

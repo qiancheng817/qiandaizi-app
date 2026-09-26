@@ -228,7 +228,169 @@ fun AiScreen() {
 
         Column(Modifier.padding(14.dp)) {
 
+            // ===== 图片记账 =====
+            WhiteCard {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Filled.Image, contentDescription = null,
+                        tint = Color(0xFF8A6D1B), modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.size(6.dp))
+                    Text("图片记账", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                }
+                Spacer(Modifier.height(4.dp))
+                Text("拍照 / 上传小票或账单截图，自动识别金额、分类与名称",
+                    fontSize = 12.sp, color = TextSub)
+                Spacer(Modifier.height(12.dp))
+
+                // OCR 类型选择（自动 = 走后端降级链）
+                val ocrTypeOptions = listOf(
+                    "" to "自动",
+                    "general_basic" to "标准",
+                    "accurate_basic" to "高精度",
+                    "webimage" to "网络图",
+                    "general" to "含位置",
+                    "handwriting" to "手写"
+                )
+                androidx.compose.foundation.layout.FlowRow(
+                    horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
+                    verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)
+                ) {
+                    ocrTypeOptions.forEach { (id, label) ->
+                        val selected = imgOcrType == id
+                        Box(
+                            Modifier
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(
+                                    if (selected) com.qiandaizi.app.core.Yellow
+                                    else Color(0xFFF6F7F9)
+                                )
+                                .clickable { imgOcrType = id }
+                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                label, fontSize = 12.sp,
+                                color = if (selected) TextMain else TextSub
+                            )
+                        }
+                    }
+                }
+                Spacer(Modifier.height(10.dp))
+
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    // 相册选择
+                    Box(
+                        Modifier
+                            .size(120.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(Color(0xFFF6F7F9))
+                            .clickable {
+                                imagePicker.launch(
+                                    PickVisualMediaRequest(
+                                        ActivityResultContracts.PickVisualMedia.ImageOnly
+                                    )
+                                )
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        val dataUrl = imgDataUrl
+                        if (dataUrl != null) {
+                            val bitmap = remember(dataUrl) {
+                                val bytes = Base64.decode(
+                                    dataUrl.substringAfter(","), Base64.DEFAULT
+                                )
+                                BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                            }
+                            Image(
+                                bitmap = bitmap.asImageBitmap(),
+                                contentDescription = null,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        } else {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(Icons.Filled.Image, contentDescription = null,
+                                    tint = TextSub, modifier = Modifier.size(26.dp))
+                                Spacer(Modifier.height(6.dp))
+                                Text("相册选择", fontSize = 12.sp, color = TextSub)
+                            }
+                        }
+                    }
+                    // 相机拍照
+                    Box(
+                        Modifier
+                            .size(120.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(Color(0xFFFCF4DC))
+                            .clickable { launchCamera() },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(Icons.Filled.PhotoCamera, contentDescription = null,
+                                tint = Color(0xFF8A6D1B), modifier = Modifier.size(26.dp))
+                            Spacer(Modifier.height(6.dp))
+                            Text("拍照识别", fontSize = 12.sp, color = Color(0xFF8A6D1B))
+                        }
+                    }
+                }
+                Spacer(Modifier.height(10.dp))
+                Column(Modifier.fillMaxWidth()) {
+                    OutlinedTextField(
+                        value = imgText,
+                        onValueChange = { imgText = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text("补充说明（可选）", fontSize = 12.sp) },
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    Spacer(Modifier.height(8.dp))
+                        Button(
+                            onClick = {
+                                if (imgDataUrl == null) {
+                                    appState.notify("请先选择一张小票 / 账单图片")
+                                    return@Button
+                                }
+                                imgParsing = true
+                                imgResult = null
+                                scope.launch {
+                                    runCatching {
+                                        appState.api().aiParseImage(
+                                            com.qiandaizi.app.core.AiParseImageReq(
+                                                image = imgDataUrl,
+                                                text = imgText.ifBlank { null },
+                                                ocrType = imgOcrType.ifBlank { null }
+                                            )
+                                        )
+                                    }.onSuccess {
+                                        imgResult = it
+                                        imgDataUrl = null
+                                        imgText = ""
+                                    }.onFailure { appState.notify(explainError(it)) }
+                                    imgParsing = false
+                                }
+                            },
+                            enabled = !imgParsing,
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(20.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = com.qiandaizi.app.core.Yellow
+                            )
+                        ) {
+                            Text(if (imgParsing) "识别中…" else "识别并记账",
+                            color = TextMain, fontSize = 13.sp)
+                        }
+                    }
+
+                // 图片识别结果（展示在本卡片内）
+                imgResult?.let { r ->
+                    ParseResultCard(
+                        r = r,
+                        saving = saving,
+                        onCancel = { imgResult = null },
+                        onConfirm = { confirmParse(r) { imgResult = null } }
+                    )
+                }
+                }
+
             // ===== 一句话记账 =====
+            Spacer(Modifier.height(14.dp))
             WhiteCard {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Filled.Bolt, contentDescription = null,
@@ -452,168 +614,6 @@ fun AiScreen() {
                     )
                 }
             }
-
-            // ===== 图片记账 =====
-            Spacer(Modifier.height(14.dp))
-            WhiteCard {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Filled.Image, contentDescription = null,
-                        tint = Color(0xFF8A6D1B), modifier = Modifier.size(20.dp))
-                    Spacer(Modifier.size(6.dp))
-                    Text("图片记账", fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                }
-                Spacer(Modifier.height(4.dp))
-                Text("拍照 / 上传小票或账单截图，自动识别金额、分类与名称",
-                    fontSize = 12.sp, color = TextSub)
-                Spacer(Modifier.height(12.dp))
-
-                // OCR 类型选择（自动 = 走后端降级链）
-                val ocrTypeOptions = listOf(
-                    "" to "自动",
-                    "general_basic" to "标准",
-                    "accurate_basic" to "高精度",
-                    "webimage" to "网络图",
-                    "general" to "含位置",
-                    "handwriting" to "手写"
-                )
-                androidx.compose.foundation.layout.FlowRow(
-                    horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
-                    verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)
-                ) {
-                    ocrTypeOptions.forEach { (id, label) ->
-                        val selected = imgOcrType == id
-                        Box(
-                            Modifier
-                                .clip(RoundedCornerShape(20.dp))
-                                .background(
-                                    if (selected) com.qiandaizi.app.core.Yellow
-                                    else Color(0xFFF6F7F9)
-                                )
-                                .clickable { imgOcrType = id }
-                                .padding(horizontal = 12.dp, vertical = 6.dp)
-                        ) {
-                            Text(
-                                label, fontSize = 12.sp,
-                                color = if (selected) TextMain else TextSub
-                            )
-                        }
-                    }
-                }
-                Spacer(Modifier.height(10.dp))
-
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    // 相册选择
-                    Box(
-                        Modifier
-                            .size(120.dp)
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(Color(0xFFF6F7F9))
-                            .clickable {
-                                imagePicker.launch(
-                                    PickVisualMediaRequest(
-                                        ActivityResultContracts.PickVisualMedia.ImageOnly
-                                    )
-                                )
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        val dataUrl = imgDataUrl
-                        if (dataUrl != null) {
-                            val bitmap = remember(dataUrl) {
-                                val bytes = Base64.decode(
-                                    dataUrl.substringAfter(","), Base64.DEFAULT
-                                )
-                                BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                            }
-                            Image(
-                                bitmap = bitmap.asImageBitmap(),
-                                contentDescription = null,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        } else {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Icon(Icons.Filled.Image, contentDescription = null,
-                                    tint = TextSub, modifier = Modifier.size(26.dp))
-                                Spacer(Modifier.height(6.dp))
-                                Text("相册选择", fontSize = 12.sp, color = TextSub)
-                            }
-                        }
-                    }
-                    // 相机拍照
-                    Box(
-                        Modifier
-                            .size(120.dp)
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(Color(0xFFFCF4DC))
-                            .clickable { launchCamera() },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Filled.PhotoCamera, contentDescription = null,
-                                tint = Color(0xFF8A6D1B), modifier = Modifier.size(26.dp))
-                            Spacer(Modifier.height(6.dp))
-                            Text("拍照识别", fontSize = 12.sp, color = Color(0xFF8A6D1B))
-                        }
-                    }
-                }
-                Spacer(Modifier.height(10.dp))
-                Column(Modifier.fillMaxWidth()) {
-                    OutlinedTextField(
-                        value = imgText,
-                        onValueChange = { imgText = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text("补充说明（可选）", fontSize = 12.sp) },
-                        singleLine = true,
-                        shape = RoundedCornerShape(12.dp)
-                    )
-                    Spacer(Modifier.height(8.dp))
-                        Button(
-                            onClick = {
-                                if (imgDataUrl == null) {
-                                    appState.notify("请先选择一张小票 / 账单图片")
-                                    return@Button
-                                }
-                                imgParsing = true
-                                imgResult = null
-                                scope.launch {
-                                    runCatching {
-                                        appState.api().aiParseImage(
-                                            com.qiandaizi.app.core.AiParseImageReq(
-                                                image = imgDataUrl,
-                                                text = imgText.ifBlank { null },
-                                                ocrType = imgOcrType.ifBlank { null }
-                                            )
-                                        )
-                                    }.onSuccess {
-                                        imgResult = it
-                                        imgDataUrl = null
-                                        imgText = ""
-                                    }.onFailure { appState.notify(explainError(it)) }
-                                    imgParsing = false
-                                }
-                            },
-                            enabled = !imgParsing,
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(20.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = com.qiandaizi.app.core.Yellow
-                            )
-                        ) {
-                            Text(if (imgParsing) "识别中…" else "识别并记账",
-                            color = TextMain, fontSize = 13.sp)
-                        }
-                    }
-
-                // 图片识别结果（展示在本卡片内）
-                imgResult?.let { r ->
-                    ParseResultCard(
-                        r = r,
-                        saving = saving,
-                        onCancel = { imgResult = null },
-                        onConfirm = { confirmParse(r) { imgResult = null } }
-                    )
-                }
-                }
             Spacer(Modifier.height(20.dp))
         }
     }

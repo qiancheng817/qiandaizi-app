@@ -5,10 +5,11 @@
 
 ## 下载安装
 
-- 最新版本：**v1.7.0**
-- 下载地址：[Qiandaizi-v1.7.0.apk](https://github.com/qiancheng817/qiandaizi-android/releases/download/v1.7.0/Qiandaizi-v1.7.0.apk)（约 12.5 MB，正式签名包）
+- 最新版本：**v1.9.0**
+- 下载地址：[Qiandaizi-v1.9.0.apk](https://github.com/qiancheng817/qiandaizi-app/releases/download/v1.9.0/Qiandaizi-v1.9.0.apk)（约 12.5 MB，正式签名包）
 - 系统要求：Android 8.0（API 26）及以上
 - 安装时如提示风险，请选择"允许来自此来源的应用 / 继续安装"
+- App 内支持检查更新：启动时静默检查，也可在「更多 → 关于我们 → 检查更新」手动触发并直接下载安装
 
 ## 功能特性
 

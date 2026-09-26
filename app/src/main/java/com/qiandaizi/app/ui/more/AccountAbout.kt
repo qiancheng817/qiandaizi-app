@@ -1,6 +1,8 @@
 package com.qiandaizi.app.ui.more
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -21,6 +23,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.qiandaizi.app.BuildConfig
 import com.qiandaizi.app.core.AppGraph
 import com.qiandaizi.app.core.MetaDto
 import com.qiandaizi.app.core.TextMain
@@ -30,6 +33,7 @@ import com.qiandaizi.app.core.explainError
 import com.qiandaizi.app.ui.common.PrimaryButton
 import com.qiandaizi.app.ui.common.QianField
 import com.qiandaizi.app.ui.common.SubPageScaffold
+import com.qiandaizi.app.ui.common.UpdateFlow
 import com.qiandaizi.app.ui.common.WhiteCard
 import com.qiandaizi.app.ui.common.AppIcon
 import kotlinx.coroutines.launch
@@ -202,8 +206,26 @@ fun AboutScreen(onBack: () -> Unit) {
                     Text("钱袋子", fontSize = 20.sp, fontWeight = FontWeight.Bold,
                         color = TextMain)
                     Spacer(Modifier.height(4.dp))
-                    Text("版本 ${meta?.version ?: "1.5.0"}", fontSize = 12.sp,
+                    Text("版本 v${BuildConfig.VERSION_NAME}", fontSize = 12.sp,
                         color = TextSub)
+                    meta?.version?.let {
+                        Text("服务端 v$it", fontSize = 11.sp, color = TextSub,
+                            modifier = Modifier.padding(top = 2.dp))
+                    }
+                }
+            }
+            Spacer(Modifier.height(14.dp))
+            WhiteCard {
+                Row(Modifier.fillMaxWidth().clickable { UpdateFlow.checkFromUser() },
+                    verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("检查更新", fontSize = 15.sp, fontWeight = FontWeight.Bold,
+                            color = TextMain)
+                        Spacer(Modifier.height(2.dp))
+                        Text("当前 v${BuildConfig.VERSION_NAME}，从 GitHub Releases 获取新版",
+                            fontSize = 11.sp, color = TextSub)
+                    }
+                    Text("›", fontSize = 22.sp, color = TextSub)
                 }
             }
             Spacer(Modifier.height(14.dp))
