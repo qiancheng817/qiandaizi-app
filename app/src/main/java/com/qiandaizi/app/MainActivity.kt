@@ -26,15 +26,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import com.qiandaizi.app.core.AppGraph
 import com.qiandaizi.app.core.QianTheme
 import com.qiandaizi.app.core.YellowDark
 import com.qiandaizi.app.ui.RootGate
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
-        installSplashScreen()
+        val splashScreen = installSplashScreen()
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        // 系统闪屏保持到会话加载完成，无缝交棒给 Compose 开屏页（SplashGate）
+        splashScreen.setKeepOnScreenCondition { !AppGraph.state.loaded }
         setContent {
             QianTheme {
                 var crash by remember { mutableStateOf<String?>(null) }

@@ -2,6 +2,8 @@ package com.qiandaizi.app.ui
 
 import androidx.compose.animation.AnimatedContent
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -18,6 +20,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Apps
@@ -36,7 +39,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -74,6 +79,7 @@ import com.qiandaizi.app.ui.more.WalletDetailScreen
 import com.qiandaizi.app.ui.more.WalletsScreen
 import com.qiandaizi.app.ui.common.UpdateDialogs
 import com.qiandaizi.app.ui.common.UpdateFlow
+import com.qiandaizi.app.ui.common.AppIcon
 import com.qiandaizi.app.ui.record.RecordScreen
 import com.qiandaizi.app.ui.stats.StatsScreen
 import kotlinx.coroutines.delay
@@ -101,6 +107,47 @@ sealed interface Route {
     data object Bills : Route
 }
 
+/* ================= 开屏页 ================= */
+
+/** 冷启动开屏：品牌黄底 + 图标淡入放大，衔接系统 Splash 到首帧内容 */
+@Composable
+private fun SplashGate() {
+    val alpha = remember { Animatable(0f) }
+    val scale = remember { Animatable(0.82f) }
+    LaunchedEffect(Unit) {
+        alpha.animateTo(1f, tween(600))
+    }
+    LaunchedEffect(Unit) {
+        scale.animateTo(1f, tween(600))
+    }
+    Column(
+        Modifier
+            .fillMaxSize()
+            .background(Yellow)
+            .navigationBarsPadding(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        AppIcon(
+            Modifier
+                .size(96.dp)
+                .scale(scale.value)
+                .alpha(alpha.value)
+                .clip(RoundedCornerShape(26.dp))
+        )
+        Spacer(Modifier.height(18.dp))
+        Text(
+            "钱袋子", fontSize = 26.sp, fontWeight = FontWeight.Bold,
+            color = TextMain, modifier = Modifier.alpha(alpha.value)
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "一句话就能记账", fontSize = 13.sp, color = YellowDark,
+            modifier = Modifier.alpha(alpha.value)
+        )
+    }
+}
+
 /* ================= 登录态闸门 ================= */
 
 @Composable
@@ -109,7 +156,7 @@ fun RootGate() {
 
     Box(Modifier.fillMaxSize()) {
         when {
-            !state.loaded -> Box(Modifier.fillMaxSize().background(Yellow))
+            !state.loaded -> SplashGate()
             state.server == null -> ServerScreen()
             state.account() == null -> LoginScreen()
             state.bookId() == null -> EnsureBookGate()
