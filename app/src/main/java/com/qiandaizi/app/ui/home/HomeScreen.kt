@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -39,13 +40,17 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.qiandaizi.app.core.AppGraph
@@ -627,35 +632,55 @@ private fun AmountRow(
     modifier: Modifier = Modifier,
     baseFontSize: Float = if (big) 24f else 18f
 ) {
-    // 字号自适应：金额过长时自动缩小，避免显示不全
-    var fontSize by remember(value) { mutableStateOf(baseFontSize) }
-    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
-        Box(
-            Modifier
-                .size(if (big) 42.dp else 38.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(SoftGrayBox),
-            contentAlignment = Alignment.Center
-        ) {
+    // 字号自适应：在组合阶段用 TextMeasurer 预算不溢出的最大字号，
+    // 避免「先按大字号绘制一帧、onTextLayout 后再回缩重绘」导致的金额闪动
+    BoxWithConstraints(modifier) {
+        val badgeSize = if (big) 42.dp else 38.dp
+        val textMaxWidth = (maxWidth - badgeSize - 12.dp).coerceAtLeast(1.dp)
+        val maxWidthPx = with(LocalDensity.current) { textMaxWidth.roundToPx() }
+        val measurer = rememberTextMeasurer()
+        val baseStyle = remember(valueColor) {
+            TextStyle(fontWeight = FontWeight.Bold, color = valueColor)
+        }
+
+        var fitted = baseFontSize
+        while (fitted > 10f) {
+            val result = measurer.measure(
+                text = value,
+                style = baseStyle.copy(fontSize = fitted.sp),
+                maxLines = 1,
+                softWrap = false,
+                constraints = Constraints(maxWidth = maxWidthPx)
+            )
+            if (!result.hasVisualOverflow) break
+            fitted -= 1f
+        }
+
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier
+                    .size(badgeSize)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(SoftGrayBox),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    badge,
+                    fontSize = if (big) 16.sp else 15.sp,
+                    color = Color(0xFF777C85),
+                    fontWeight = FontWeight.Medium
+                )
+            }
+            Spacer(Modifier.size(12.dp))
             Text(
-                badge,
-                fontSize = if (big) 16.sp else 15.sp,
-                color = Color(0xFF777C85),
-                fontWeight = FontWeight.Medium
+                value,
+                fontSize = fitted.sp,
+                fontWeight = FontWeight.Bold,
+                color = valueColor,
+                maxLines = 1,
+                softWrap = false
             )
         }
-        Spacer(Modifier.size(12.dp))
-        Text(
-            value,
-            fontSize = fontSize.sp,
-            fontWeight = FontWeight.Bold,
-            color = valueColor,
-            maxLines = 1,
-            softWrap = false,
-            onTextLayout = {
-                if (it.hasVisualOverflow && fontSize > 10f) fontSize -= 2f
-            }
-        )
     }
 }
 
