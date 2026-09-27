@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -65,6 +66,7 @@ import com.qiandaizi.app.core.TextMain
 import com.qiandaizi.app.core.TextSub
 import com.qiandaizi.app.core.addMonth
 import com.qiandaizi.app.core.amount
+import com.qiandaizi.app.core.doneValue
 import com.qiandaizi.app.core.explainError
 import com.qiandaizi.app.core.md
 import com.qiandaizi.app.core.money
@@ -91,19 +93,31 @@ fun HomeScreen() {
     var calOpen by rememberSaveable { mutableStateOf(false) }
     var monthDialog by remember { mutableStateOf(false) }
 
-    var bags by remember { mutableStateOf<MoneyBagsDto?>(null) }
-    var calendar by remember { mutableStateOf<List<DailyDto>>(emptyList()) }
-    var members by remember { mutableStateOf<List<AttrMember>>(emptyList()) }
-    var recent by remember { mutableStateOf<List<FlowDto>>(emptyList()) }
-    var recentFilter by rememberSaveable { mutableStateOf("all") }
-    var budget by remember { mutableStateOf<BudgetDataDto?>(null) }
-    var categories by remember { mutableStateOf<List<CategoryDto>>(emptyList()) }
-    var loadError by remember { mutableStateOf<String?>(null) }
-    var recentLoading by remember { mutableStateOf(false) }
-
-    // 冷启动时开屏阶段已发起首页请求（仅当前月），取走这批在途请求；
+    // 冷启动开屏阶段已等待预取完成，这里一次性取走快照；
+    // 已完成的结果直接作为 state 初始值，首帧即真实内容，无 loading→内容跳变。
     // 切月/刷新后为 null，走正常网络请求
     val prefetch = remember(month) { HomePrefetcher.consume(month) }
+
+    var bags by remember { mutableStateOf(prefetch?.bags?.doneValue()) }
+    var calendar by remember {
+        mutableStateOf(prefetch?.calendar?.doneValue() ?: emptyList())
+    }
+    var members by remember {
+        mutableStateOf(prefetch?.members?.doneValue()?.members ?: emptyList())
+    }
+    val flowsReady = prefetch?.flows?.isCompleted == true
+    var recent by remember {
+        mutableStateOf(prefetch?.flows?.doneValue()?.list ?: emptyList())
+    }
+    var recentFilter by rememberSaveable { mutableStateOf("all") }
+    var budget by remember { mutableStateOf(prefetch?.budgets?.doneValue()) }
+    var categories by remember {
+        mutableStateOf(prefetch?.categories?.doneValue() ?: emptyList())
+    }
+    var loadError by remember { mutableStateOf<String?>(null) }
+    // 预取流水已就绪则首帧不转圈；否则显示 loading，且未加载完不渲染"无记录"空态
+    var recentLoading by remember { mutableStateOf(!flowsReady) }
+    var recentLoaded by remember { mutableStateOf(flowsReady) }
 
     var searchOpen by remember { mutableStateOf(false) }
     var keyword by remember { mutableStateOf("") }
@@ -172,6 +186,7 @@ fun HomeScreen() {
                 )
         }.onSuccess { recent = it.list }
         recentLoading = false
+        recentLoaded = true
     }
 
     // 年预算
@@ -212,6 +227,7 @@ fun HomeScreen() {
     Column(
         Modifier
             .fillMaxSize()
+            .background(com.qiandaizi.app.core.AppBg)
             .verticalScroll(rememberScrollState())
     ) {
         // ===== 黄色顶部 =====
@@ -292,18 +308,24 @@ fun HomeScreen() {
             }
 
             // ===== 主卡片 =====
+            // loading 与内容共用同一最小高度，数据替换时卡片高度不变，
+            // 下方「最近记录」等模块不会被上下推动
             WhiteCard {
                 if (bags == null) {
                     if (loadError != null) {
                         Text(loadError!!, fontSize = 13.sp, color = TextSub)
                     } else {
-                        Box(Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) {
+                        Box(
+                            Modifier.fillMaxWidth().height(158.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
                             androidx.compose.material3.CircularProgressIndicator(
                                 color = com.qiandaizi.app.core.YellowDark
                             )
                         }
                     }
                 } else {
+                    Column(Modifier.fillMaxWidth().heightIn(min = 158.dp)) {
                     val data = bags!!
 
                     val meBucket = data.buckets.find { it.uid == me?.id }
@@ -444,6 +466,7 @@ fun HomeScreen() {
                             }
                         )
                     }
+                    }
                 }
             }
 
@@ -479,13 +502,17 @@ fun HomeScreen() {
                         )
                     }
                 }
-                groupedRecent.isEmpty() -> WhiteCard {
-                    Text(
-                        "本月还没有相关记录，点底部 ＋ 开始记一笔吧",
-                        fontSize = 13.sp,
-                        color = TextSub,
-                        modifier = Modifier.padding(vertical = 18.dp)
-                    )
+                groupedRecent.isEmpty() && recentLoaded -> WhiteCard {
+                    Box(
+                        Modifier.fillMaxWidth().height(80.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            "本月还没有相关记录，点底部 ＋ 开始记一笔吧",
+                            fontSize = 13.sp,
+                            color = TextSub
+                        )
+                    }
                 }
                 else -> groupedRecent.forEachIndexed { idx, group ->
                     if (idx > 0) Spacer(Modifier.height(10.dp))

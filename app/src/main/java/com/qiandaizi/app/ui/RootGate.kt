@@ -37,7 +37,6 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -85,7 +84,7 @@ import com.qiandaizi.app.ui.common.AppIcon
 import com.qiandaizi.app.ui.record.RecordScreen
 import com.qiandaizi.app.ui.stats.StatsScreen
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 
 /* ================= 子页面路由 ================= */
 
@@ -164,12 +163,15 @@ fun RootGate() {
         splashMinDone = true
     }
 
-    // 会话（服务器/账号/账本）一就绪，趁开屏展示期间预取首页数据，
-    // 把网络耗时藏进开屏动画里；纯内存预取，不落盘
-    LaunchedEffect(Unit) {
-        snapshotFlow { state.isReady }
-            .first { it }
+    // 会话一就绪就趁开屏期间预取首页，并尽量等数据回来再进首页，
+    // 保证 HomeScreen 首帧即为定版布局（无转圈/空态→内容的跳变）。
+    // 最长多等约 2.8s，慢网络不强卡，进首页后由各模块自行 loading
+    var homeReady by remember { mutableStateOf(false) }
+    LaunchedEffect(state.isReady) {
+        if (!state.isReady) return@LaunchedEffect
         HomePrefetcher.trigger()
+        withTimeoutOrNull(2_800) { HomePrefetcher.awaitAll() }
+        homeReady = true
     }
 
     Box(Modifier.fillMaxSize()) {
@@ -178,6 +180,7 @@ fun RootGate() {
             state.server == null -> ServerScreen()
             state.account() == null -> LoginScreen()
             state.bookId() == null -> EnsureBookGate()
+            !homeReady -> SplashGate()
             else -> MainShell()
         }
 
