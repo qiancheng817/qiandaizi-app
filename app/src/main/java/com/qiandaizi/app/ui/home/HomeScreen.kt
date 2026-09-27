@@ -54,6 +54,7 @@ import com.qiandaizi.app.core.BudgetDataDto
 import com.qiandaizi.app.core.CategoryDto
 import com.qiandaizi.app.core.DailyDto
 import com.qiandaizi.app.core.FlowDto
+import com.qiandaizi.app.core.HomePrefetcher
 import com.qiandaizi.app.core.MoneyBagsDto
 import com.qiandaizi.app.core.TextMain
 import com.qiandaizi.app.core.TextSub
@@ -95,6 +96,10 @@ fun HomeScreen() {
     var loadError by remember { mutableStateOf<String?>(null) }
     var recentLoading by remember { mutableStateOf(false) }
 
+    // 冷启动时开屏阶段已发起首页请求（仅当前月），取走这批在途请求；
+    // 切月/刷新后为 null，走正常网络请求
+    val prefetch = remember(month) { HomePrefetcher.consume(month) }
+
     var searchOpen by remember { mutableStateOf(false) }
     var keyword by remember { mutableStateOf("") }
     var searchResults by remember { mutableStateOf<List<FlowDto>>(emptyList()) }
@@ -109,33 +114,42 @@ fun HomeScreen() {
 
     // 账本成员（独立加载，不被其他接口失败拖累）
     LaunchedEffect(appState.epoch) {
-        runCatching { appState.api().attributions() }
-            .onSuccess { members = it.members }
+        runCatching {
+            prefetch?.members?.await()?.getOrThrow() ?: appState.api().attributions()
+        }.onSuccess { members = it.members }
     }
 
     // 钱袋数据
     LaunchedEffect(month, appState.epoch) {
         loadError = null
-        runCatching { appState.api().moneybags(month) }
+        runCatching {
+            prefetch?.bags?.await()?.getOrThrow() ?: appState.api().moneybags(month)
+        }
             .onSuccess { bags = it }
             .onFailure { loadError = explainError(it) }
     }
 
     // 日历热力
     LaunchedEffect(month, appState.epoch) {
-        runCatching { appState.api().statCalendar(month) }
+        runCatching {
+            prefetch?.calendar?.await()?.getOrThrow() ?: appState.api().statCalendar(month)
+        }
             .onSuccess { calendar = it }
     }
 
     // 分类
     LaunchedEffect(appState.epoch) {
-        runCatching { appState.api().categories() }
+        runCatching {
+            prefetch?.categories?.await()?.getOrThrow() ?: appState.api().categories()
+        }
             .onSuccess { categories = it }
     }
 
     // 最近记录
     LaunchedEffect(month, recentFilter, appState.epoch) {
         recentLoading = true
+        // 预取只覆盖默认「全部」筛选；切到成员筛选时正常请求
+        val prefetchedFlows = if (recentFilter == "all") prefetch?.flows else null
         runCatching {
             val (start, end) = com.qiandaizi.app.core.monthRange(month)
             val attrUid = when (recentFilter) {
@@ -143,13 +157,14 @@ fun HomeScreen() {
                 "other" -> other?.id
                 else -> null
             }
-            appState.api().flows(
-                start = start,
-                end = end,
-                attributionUid = attrUid,
-                page = 1,
-                pageSize = 300
-            )
+            prefetchedFlows?.await()?.getOrThrow()
+                ?: appState.api().flows(
+                    start = start,
+                    end = end,
+                    attributionUid = attrUid,
+                    page = 1,
+                    pageSize = 300
+                )
         }.onSuccess { recent = it.list }
         recentLoading = false
     }
@@ -157,7 +172,8 @@ fun HomeScreen() {
     // 年预算
     LaunchedEffect(month, appState.epoch) {
         runCatching {
-            appState.api().budgets(month.substring(0, 4).toInt())
+            prefetch?.budgets?.await()?.getOrThrow()
+                ?: appState.api().budgets(month.substring(0, 4).toInt())
         }.onSuccess { budget = it }
     }
 

@@ -37,6 +37,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -49,6 +50,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.qiandaizi.app.core.AppGraph
 import com.qiandaizi.app.core.CardWhite
+import com.qiandaizi.app.core.HomePrefetcher
 import com.qiandaizi.app.core.TextMain
 import com.qiandaizi.app.core.TextSub
 import com.qiandaizi.app.core.Yellow
@@ -83,6 +85,7 @@ import com.qiandaizi.app.ui.common.AppIcon
 import com.qiandaizi.app.ui.record.RecordScreen
 import com.qiandaizi.app.ui.stats.StatsScreen
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 
 /* ================= 子页面路由 ================= */
 
@@ -159,6 +162,14 @@ fun RootGate() {
     LaunchedEffect(Unit) {
         delay(1_400)
         splashMinDone = true
+    }
+
+    // 会话（服务器/账号/账本）一就绪，趁开屏展示期间预取首页数据，
+    // 把网络耗时藏进开屏动画里；纯内存预取，不落盘
+    LaunchedEffect(Unit) {
+        snapshotFlow { state.isReady }
+            .first { it }
+        HomePrefetcher.trigger()
     }
 
     Box(Modifier.fillMaxSize()) {
