@@ -46,25 +46,27 @@ jobs:
         run: ./gradlew assembleRelease --stacktrace
 
       - name: Rename APK
-        run: cp app/build/outputs/apk/release/app-release.apk Qiandaizi-v1.9.5.apk
+        run: cp app/build/outputs/apk/release/app-release.apk Qiandaizi-v1.9.6.apk
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: 钱袋子-APK
-          path: Qiandaizi-v1.9.5.apk
+          path: Qiandaizi-v1.9.6.apk
           retention-days: 30
 
       - name: Publish Release
         if: startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v1.9.5' }}
-          name: 钱袋子 Android v1.9.5
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v1.9.6' }}
+          name: 钱袋子 Android v1.9.6
           body: |
             钱袋子原生 Android 客户端（纯 Kotlin + Jetpack Compose，非套壳浏览器）。
-            正式签名安装包，下载下方 `Qiandaizi-v1.9.5.apk` 安装即可（安卓 8.0 及以上）。
+            正式签名安装包，下载下方 `Qiandaizi-v1.9.6.apk` 安装即可（安卓 8.0 及以上）。
             本版改进：
+            - 总钱袋/我的/对方三张卡片支持左右滑动切换，三页等高，底部加指示点
+            - 主卡片与顶部栏留出间隔
             - 冷启动首页不再跳动：开屏等首页数据就绪后再进入，首帧即定版布局
             - 主卡片/记录区加载态与内容同高，消除模块上下位移；修复空态文案误闪
             - 修复首页「收/余」金额加载后字号回缩闪动：改为绘制前预算字号，首帧即最终大小
@@ -75,6 +77,6 @@ jobs:
             - AI 记账页模块重排：图片记账 → 一句话记账 → 月度智能分析
             - 新增检查更新：启动静默检查 +「更多 → 关于我们」手动检查，应用内下载 APK 并拉起安装
             - 关于页显示客户端版本与服务端版本
-          files: Qiandaizi-v1.9.5.apk
+          files: Qiandaizi-v1.9.6.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

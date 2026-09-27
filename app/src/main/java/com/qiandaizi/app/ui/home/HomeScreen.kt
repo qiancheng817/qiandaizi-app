@@ -21,6 +21,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Close
@@ -236,7 +238,7 @@ fun HomeScreen() {
                 .fillMaxWidth()
                 .background(com.qiandaizi.app.core.Yellow)
                 .statusBarsPadding()
-                .padding(start = 14.dp, end = 14.dp, top = 14.dp, bottom = 26.dp)
+                .padding(start = 14.dp, end = 14.dp, top = 14.dp, bottom = 12.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 BubbleSwitcher(
@@ -277,6 +279,9 @@ fun HomeScreen() {
 
         Column(Modifier.padding(horizontal = 14.dp)) {
 
+            // 主卡片与黄色顶栏之间留出底色间隔
+            Spacer(Modifier.height(12.dp))
+
             if (searchOpen) {
                 WhiteCard(modifier = Modifier.padding(bottom = 14.dp)) {
                     OutlinedTextField(
@@ -307,16 +312,14 @@ fun HomeScreen() {
                 }
             }
 
-            // ===== 主卡片 =====
-            // loading 与内容共用同一最小高度，数据替换时卡片高度不变，
-            // 下方「最近记录」等模块不会被上下推动
+            // ===== 主卡片（总钱袋/我的/对方 左右滑动切换，三页同高） =====
             WhiteCard {
                 if (bags == null) {
                     if (loadError != null) {
                         Text(loadError!!, fontSize = 13.sp, color = TextSub)
                     } else {
                         Box(
-                            Modifier.fillMaxWidth().height(158.dp),
+                            Modifier.fillMaxWidth().height(190.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             androidx.compose.material3.CircularProgressIndicator(
@@ -325,35 +328,21 @@ fun HomeScreen() {
                         }
                     }
                 } else {
-                    Column(Modifier.fillMaxWidth().heightIn(min = 158.dp)) {
                     val data = bags!!
 
-                    val meBucket = data.buckets.find { it.uid == me?.id }
-                    val otherBucket = data.buckets.find { it.uid != null && it.uid != me?.id }
-
-                    // 支/收/余
-                    val expense: Double
-                    val income: Double
-                    val balance: Double
-                    val yearBalance: Double?
-                    when (bagTitles[bagIndex]) {
-                        "我的钱袋" -> {
-                            expense = meBucket?.monthExpense ?: 0.0
-                            income = meBucket?.monthIncome ?: 0.0
-                            balance = income - expense
-                            yearBalance = (meBucket?.yearIncome ?: 0.0) - (meBucket?.yearExpense ?: 0.0)
+                    val pagerState = rememberPagerState(
+                        initialPage = bagIndex.coerceIn(0, bagTitles.lastIndex)
+                    ) { bagTitles.size }
+                    // 箭头/外部改 bagIndex → 滚动到对应页
+                    LaunchedEffect(bagIndex) {
+                        if (pagerState.currentPage != bagIndex) {
+                            pagerState.animateScrollToPage(bagIndex)
                         }
-                        "对方的钱袋" -> {
-                            expense = otherBucket?.monthExpense ?: 0.0
-                            income = otherBucket?.monthIncome ?: 0.0
-                            balance = income - expense
-                            yearBalance = (otherBucket?.yearIncome ?: 0.0) - (otherBucket?.yearExpense ?: 0.0)
-                        }
-                        else -> {
-                            expense = data.total.expense
-                            income = data.total.income
-                            balance = data.total.balance
-                            yearBalance = null
+                    }
+                    // 手指滑动 → 同步 bagIndex（月份标签/筛选随之变化）
+                    LaunchedEffect(pagerState.currentPage) {
+                        if (bagIndex != pagerState.currentPage) {
+                            bagIndex = pagerState.currentPage
                         }
                     }
 
@@ -401,49 +390,113 @@ fun HomeScreen() {
 
                     Spacer(Modifier.height(20.dp))
 
-                    // 支
-                    AmountRow(
-                        badge = "支",
-                        value = "¥${amount(expense)}",
-                        valueColor = com.qiandaizi.app.core.BrandBlue,
-                        big = true
-                    )
-                    Spacer(Modifier.height(14.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        AmountRow(
-                            badge = "收",
-                            value = "¥${amount(income)}",
-                            valueColor = com.qiandaizi.app.core.ExpenseRed,
-                            big = true,
-                            baseFontSize = 18f,
-                            modifier = Modifier.weight(1f)
-                        )
-                        Spacer(Modifier.size(12.dp))
-                        AmountRow(
-                            badge = "余",
-                            value = (if (balance >= 0) "" else "-") +
-                                "¥${amount(kotlin.math.abs(balance))}",
-                            valueColor = com.qiandaizi.app.core.IncomeGreen,
-                            big = false,
-                            modifier = Modifier.weight(1f)
-                        )
+                    // 三钱袋数字区：横向滑动，三页结构完全一致（同高）
+                    HorizontalPager(
+                        state = pagerState,
+                        modifier = Modifier.fillMaxWidth()
+                    ) { page ->
+                        val meBucket = data.buckets.find { it.uid == me?.id }
+                        val otherBucket = data.buckets.find { it.uid != null && it.uid != me?.id }
+
+                        val expense: Double
+                        val income: Double
+                        val balance: Double
+                        val yearBalance: Double?
+                        when (bagTitles[page]) {
+                            "我的钱袋" -> {
+                                expense = meBucket?.monthExpense ?: 0.0
+                                income = meBucket?.monthIncome ?: 0.0
+                                balance = income - expense
+                                yearBalance = (meBucket?.yearIncome ?: 0.0) -
+                                    (meBucket?.yearExpense ?: 0.0)
+                            }
+                            "对方的钱袋" -> {
+                                expense = otherBucket?.monthExpense ?: 0.0
+                                income = otherBucket?.monthIncome ?: 0.0
+                                balance = income - expense
+                                yearBalance = (otherBucket?.yearIncome ?: 0.0) -
+                                    (otherBucket?.yearExpense ?: 0.0)
+                            }
+                            else -> {
+                                expense = data.total.expense
+                                income = data.total.income
+                                balance = data.total.balance
+                                yearBalance = null
+                            }
+                        }
+
+                        Column {
+                            // 支
+                            AmountRow(
+                                badge = "支",
+                                value = "¥${amount(expense)}",
+                                valueColor = com.qiandaizi.app.core.BrandBlue,
+                                big = true
+                            )
+                            Spacer(Modifier.height(14.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                AmountRow(
+                                    badge = "收",
+                                    value = "¥${amount(income)}",
+                                    valueColor = com.qiandaizi.app.core.ExpenseRed,
+                                    big = true,
+                                    baseFontSize = 18f,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Spacer(Modifier.size(12.dp))
+                                AmountRow(
+                                    badge = "余",
+                                    value = (if (balance >= 0) "" else "-") +
+                                        "¥${amount(kotlin.math.abs(balance))}",
+                                    valueColor = com.qiandaizi.app.core.IncomeGreen,
+                                    big = false,
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+
+                            // 年结余：总钱袋无此数据，用同结构透明行占位，保证三页等高
+                            Spacer(Modifier.height(12.dp))
+                            if (yearBalance != null) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        "${data.year}年结余",
+                                        fontSize = 13.sp,
+                                        color = TextSub
+                                    )
+                                    Spacer(Modifier.size(8.dp))
+                                    Text(
+                                        (if (yearBalance >= 0) "" else "-") +
+                                            money(kotlin.math.abs(yearBalance)),
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = if (yearBalance >= 0)
+                                            com.qiandaizi.app.core.IncomeGreen
+                                        else com.qiandaizi.app.core.ExpenseRed
+                                    )
+                                }
+                            } else {
+                                Text(" ", fontSize = 14.sp)
+                            }
+                        }
                     }
 
-                    if (yearBalance != null) {
-                        Spacer(Modifier.height(12.dp))
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                "${data.year}年结余",
-                                fontSize = 13.sp,
-                                color = TextSub
-                            )
-                            Spacer(Modifier.size(8.dp))
-                            Text(
-                                (if (yearBalance >= 0) "" else "-") + money(kotlin.math.abs(yearBalance)),
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = if (yearBalance >= 0) com.qiandaizi.app.core.IncomeGreen
-                                else com.qiandaizi.app.core.ExpenseRed
+                    // 滑动指示点
+                    Spacer(Modifier.height(14.dp))
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        bagTitles.indices.forEach { i ->
+                            val selected = i == pagerState.currentPage
+                            Box(
+                                Modifier
+                                    .padding(horizontal = 4.dp)
+                                    .size(if (selected) 7.dp else 6.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        if (selected) com.qiandaizi.app.core.YellowDark
+                                        else Color(0xFFDDDDDD)
+                                    )
                             )
                         }
                     }
@@ -451,7 +504,7 @@ fun HomeScreen() {
                     // 年预算进度
                     val b = budget
                     if (b != null && b.total.amount > 0) {
-                        Spacer(Modifier.height(16.dp))
+                        Spacer(Modifier.height(14.dp))
                         BudgetBar(b)
                     }
 
@@ -465,7 +518,6 @@ fun HomeScreen() {
                                 month = addMonth(month, delta)
                             }
                         )
-                    }
                     }
                 }
             }
